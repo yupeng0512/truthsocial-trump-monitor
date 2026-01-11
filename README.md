@@ -91,8 +91,13 @@ cp .env.example .env
 |--------|------|----------|
 | `SCRAPECREATORS_API_KEY` | 数据采集 API | [ScrapeCreators](https://app.scrapecreators.com/) |
 | `FEISHU_WEBHOOK_URL` | 飞书机器人 Webhook | 飞书群设置 → 群机器人 |
-| `KNOT_AGENT_ID` | AI 分析智能体 ID | [Knot 平台](https://knot.woa.com/) |
-| `KNOT_API_TOKEN` | Knot API Token | Knot 设置 → Token |
+
+**可选配置（AI 分析）：**
+| 配置项 | 说明 |
+|--------|------|
+| `LLM_API_KEY` | LLM API 密钥 |
+| `LLM_API_BASE` | LLM API 地址 |
+| `LLM_MODEL` | 模型名称（默认 gpt-4o-mini） |
 
 ### 3. 启动服务
 ```bash
@@ -217,5 +222,4 @@ MIT License
 ## 🙏 致谢
 
 - [ScrapeCreators](https://app.scrapecreators.com/) - Truth Social 数据采集
-- [Knot](https://knot.woa.com/) - AI Agent 平台
 - [飞书开放平台](https://open.feishu.cn/) - 消息推送
