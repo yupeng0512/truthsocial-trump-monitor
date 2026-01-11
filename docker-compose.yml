@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Trump Monitor 应用
+  # 注意：MySQL 使用外部容器 github-sentinel-mysql
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: truthsocial-trump-monitor
+    restart: unless-stopped
+    environment:
+      # ScrapeCreators API
+      SCRAPECREATORS_API_KEY: ${SCRAPECREATORS_API_KEY}
+      
+      # 监控配置
+      TRUTHSOCIAL_USERNAME: ${TRUTHSOCIAL_USERNAME:-realDonaldTrump}
+      SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
+      
+      # MySQL 配置（使用外部 MySQL 容器）
+      MYSQL_HOST: ${MYSQL_HOST:-github-sentinel-mysql}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_USER: ${MYSQL_USER:-truthsocial}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-truthsocial_pass_123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-truthsocial_monitor}
+      
+      # 飞书配置
+      FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL}
+      FEISHU_SECRET: ${FEISHU_SECRET}
+      FEISHU_ENABLED: ${FEISHU_ENABLED:-true}
+      
+      # LLM 配置（预留）
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_API_BASE: ${LLM_API_BASE}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      
+      # Knot Agent 配置（AG-UI 协议）
+      KNOT_ENABLED: ${KNOT_ENABLED:-false}
+      KNOT_AGENT_ID: ${KNOT_AGENT_ID}
+      KNOT_API_TOKEN: ${KNOT_API_TOKEN}
+      KNOT_AGENT_TOKEN: ${KNOT_AGENT_TOKEN}
+      KNOT_USERNAME: ${KNOT_USERNAME}
+      KNOT_MODEL: ${KNOT_MODEL:-deepseek-v3.1}
+      
+      # 腾讯云翻译配置
+      TRANSLATE_ENABLED: ${TRANSLATE_ENABLED:-false}
+      TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID}
+      TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY}
+      TENCENTCLOUD_REGION: ${TENCENTCLOUD_REGION:-ap-guangzhou}
+      TENCENTCLOUD_PROJECT_ID: ${TENCENTCLOUD_PROJECT_ID}
+      TENCENTCLOUD_TMT_VERSION: ${TENCENTCLOUD_TMT_VERSION:-2018-03-21}
+      TENCENTCLOUD_TMT_ENDPOINT: ${TENCENTCLOUD_TMT_ENDPOINT:-tmt.tencentcloudapi.com}
+      
+      # 智能调度配置
+      TRUMP_SLEEP_START_HOUR: ${TRUMP_SLEEP_START_HOUR:-0}
+      TRUMP_SLEEP_END_HOUR: ${TRUMP_SLEEP_END_HOUR:-7}
+      SLEEP_SCRAPE_INTERVAL: ${SLEEP_SCRAPE_INTERVAL:-21600}
+      NORMAL_SCRAPE_INTERVAL: ${NORMAL_SCRAPE_INTERVAL:-3600}
+      MIN_SCRAPE_GAP: ${MIN_SCRAPE_GAP:-900}
+      
+      # API 配置
+      API_FETCH_LIMIT: ${API_FETCH_LIMIT:-300}
+      
+      # 通用配置
+      TIMEZONE: ${TIMEZONE:-Asia/Shanghai}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "6001:6001"  # 前端访问端口
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - github-sentinel_sentinel-network  # 连接到 github-sentinel 的网络
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6001/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  github-sentinel_sentinel-network:
+    external: true  # 使用外部网络

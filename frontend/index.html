@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trump Truth Social Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        heading: ['Poppins', 'sans-serif'],
+                        body: ['Open Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#F59E0B',
+                        secondary: '#FBBF24',
+                        cta: '#8B5CF6',
+                        dark: {
+                            bg: '#0F172A',
+                            card: '#1E293B',
+                            border: '#334155',
+                        },
+                        trump: {
+                            red: '#E53935',
+                            blue: '#1E88E5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #0F172A;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Poppins', sans-serif;
+        }
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #1E293B;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        .post-content a {
+            color: #60A5FA;
+            text-decoration: underline;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-dot {
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100">
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-dark-bg/95 backdrop-blur-sm border-b border-dark-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-trump-red rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="font-heading font-semibold text-lg">Trump Monitor</h1>
+                        <p class="text-xs text-slate-400">Truth Social 实时监控</p>
+                    </div>
+                </div>
+                
+                <!-- Status -->
+                <div class="flex items-center gap-4">
+                    <div id="status-indicator" class="flex items-center gap-2 px-3 py-1.5 bg-dark-card rounded-full">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse-dot"></span>
+                        <span class="text-sm text-slate-300">运行中</span>
+                    </div>
+                    <button onclick="refreshData()" class="p-2 hover:bg-dark-card rounded-lg transition-colors cursor-pointer" title="刷新数据">
+                        <svg id="refresh-icon" class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <div class="flex items-center gap-1 mt-3 border-b border-dark-border">
+                <button id="tab-posts" onclick="switchTab('posts')" class="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary transition-colors cursor-pointer">
+                    帖子列表
+                </button>
+                <button id="tab-settings" onclick="switchTab('settings')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors cursor-pointer">
+                    设置
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="pt-28 pb-8 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <!-- Posts Tab Content -->
+            <div id="content-posts">
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <!-- Total Posts -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-400">总帖子数</p>
+                                <p id="stat-total" class="text-2xl font-heading font-semibold mt-1">--</p>
+                            </div>
+                            <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Today Posts -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-400">今日新增</p>
+                                <p id="stat-today" class="text-2xl font-heading font-semibold mt-1">--</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Last Update -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-400">最后采集</p>
+                                <p id="stat-last-scrape" class="text-lg font-heading font-semibold mt-1">--</p>
+                            </div>
+                            <div class="w-12 h-12 bg-trump-blue/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-trump-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Next Scrape -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-slate-400">下次采集</p>
+                                <p id="stat-next-scrape" class="text-lg font-heading font-semibold mt-1">--</p>
+                            </div>
+                            <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Posts List -->
+                <div class="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-dark-border flex items-center justify-between">
+                        <h2 class="font-heading font-semibold text-lg">最新帖子</h2>
+                        <div class="flex items-center gap-3">
+                            <select id="filter-type" class="bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
+                                <option value="all">全部</option>
+                                <option value="original">原创</option>
+                                <option value="reblog">转发</option>
+                            </select>
+                            <input type="text" id="search-input" placeholder="搜索内容..." 
+                                class="bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-primary">
+                        </div>
+                    </div>
+
+                    <!-- Posts Container -->
+                    <div id="posts-container" class="divide-y divide-dark-border max-h-[600px] overflow-y-auto scrollbar-thin">
+                        <!-- Loading State -->
+                        <div id="loading-state" class="p-8 text-center">
+                            <div class="inline-block w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-slate-400 mt-3">加载中...</p>
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div id="empty-state" class="p-8 text-center hidden">
+                            <svg class="w-16 h-16 text-slate-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                            </svg>
+                            <p class="text-slate-400 mt-3">暂无帖子数据</p>
+                            <p class="text-slate-500 text-sm mt-1">请等待首次采集完成</p>
+                        </div>
+
+                        <!-- Posts will be rendered here -->
+                    </div>
+
+                    <!-- Pagination -->
+                    <div id="pagination" class="px-6 py-4 border-t border-dark-border flex items-center justify-between hidden">
+                        <p class="text-sm text-slate-400">
+                            显示 <span id="page-start">1</span>-<span id="page-end">20</span> 条，共 <span id="page-total">0</span> 条
+                        </p>
+                        <div class="flex items-center gap-2">
+                            <button id="btn-prev" onclick="prevPage()" class="px-3 py-1.5 bg-dark-bg border border-dark-border rounded-lg text-sm hover:bg-dark-border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                上一页
+                            </button>
+                            <span id="page-info" class="text-sm text-slate-400">1 / 1</span>
+                            <button id="btn-next" onclick="nextPage()" class="px-3 py-1.5 bg-dark-bg border border-dark-border rounded-lg text-sm hover:bg-dark-border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                下一页
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Tab Content -->
+            <div id="content-settings" class="hidden">
+                <div class="max-w-3xl space-y-6">
+                    <!-- Notification Settings -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-6 space-y-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="font-heading font-semibold text-lg">推送通知</h2>
+                                <p class="text-sm text-slate-400">配置飞书 Webhook 推送</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Feishu Config -->
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                    </svg>
+                                    <span>飞书通知</span>
+                                </div>
+                                <button id="toggle-feishu" onclick="toggleSetting('feishu_enabled')" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer bg-dark-border">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                </button>
+                            </div>
+                            
+                            <div id="feishu-config" class="space-y-3 hidden">
+                                <div>
+                                    <label class="text-sm text-slate-400 block mb-1">Webhook URL</label>
+                                    <input type="text" id="input-feishu-webhook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                                        class="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary">
+                                </div>
+                                <div>
+                                    <label class="text-sm text-slate-400 block mb-1">签名密钥（可选）</label>
+                                    <input type="text" id="input-feishu-secret" placeholder="SEC..."
+                                        class="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="testNotification()" id="btn-test-notification" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                        </svg>
+                                        测试推送
+                                    </button>
+                                    <span id="test-result" class="text-sm"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Push Strategy -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-6 space-y-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="font-heading font-semibold text-lg">推送策略</h2>
+                                <p class="text-sm text-slate-400">配置推送时机和频率</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Realtime Push -->
+                        <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                    </svg>
+                                    <span class="font-medium">实时推送</span>
+                                </div>
+                                <button id="toggle-realtime" onclick="toggleSetting('realtime_enabled')" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer bg-dark-border">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                </button>
+                            </div>
+                            <p class="text-sm text-slate-400">有新帖子时立即推送通知</p>
+                        </div>
+                        
+                        <!-- Daily Report -->
+                        <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <span class="font-medium">每日摘要</span>
+                                </div>
+                                <button id="toggle-daily" onclick="toggleSetting('daily_report_enabled')" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer bg-dark-border">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                </button>
+                            </div>
+                            <div id="daily-config" class="flex items-center gap-4 hidden">
+                                <span class="text-sm text-slate-400">推送时间</span>
+                                <input type="time" id="input-daily-time" value="09:00"
+                                    class="px-3 py-1.5 bg-dark-card border border-dark-border rounded-lg text-slate-100 focus:outline-none focus:border-primary">
+                                <span class="text-xs text-slate-500">每天</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Weekly Report -->
+                        <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span class="font-medium">每周总结</span>
+                                </div>
+                                <button id="toggle-weekly" onclick="toggleSetting('weekly_report_enabled')" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer bg-dark-border">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                </button>
+                            </div>
+                            <div id="weekly-config" class="flex items-center gap-4 flex-wrap hidden">
+                                <span class="text-sm text-slate-400">推送时间</span>
+                                <select id="input-weekly-day" class="px-3 py-1.5 bg-dark-card border border-dark-border rounded-lg text-slate-100 focus:outline-none focus:border-primary">
+                                    <option value="1">周一</option>
+                                    <option value="2">周二</option>
+                                    <option value="3">周三</option>
+                                    <option value="4">周四</option>
+                                    <option value="5">周五</option>
+                                    <option value="6">周六</option>
+                                    <option value="7">周日</option>
+                                </select>
+                                <input type="time" id="input-weekly-time" value="09:00"
+                                    class="px-3 py-1.5 bg-dark-card border border-dark-border rounded-lg text-slate-100 focus:outline-none focus:border-primary">
+                                <span class="text-sm text-slate-400 ml-2">热门帖子</span>
+                                <select id="input-weekly-top-posts" class="px-3 py-1.5 bg-dark-card border border-dark-border rounded-lg text-slate-100 focus:outline-none focus:border-primary">
+                                    <option value="3">Top 3</option>
+                                    <option value="5">Top 5</option>
+                                    <option value="10" selected>Top 10</option>
+                                    <option value="15">Top 15</option>
+                                    <option value="20">Top 20</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual Push -->
+                    <div class="bg-dark-card border border-dark-border rounded-xl p-6 space-y-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="font-heading font-semibold text-lg">手动推送</h2>
+                                <p class="text-sm text-slate-400">立即发送报告到飞书</p>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <span class="font-medium">日报</span>
+                                </div>
+                                <p class="text-xs text-slate-400">今日帖子摘要</p>
+                                <button onclick="pushReport('daily')" class="w-full px-4 py-2 bg-emerald-500 hover:bg-emerald-600 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                    立即推送
+                                </button>
+                            </div>
+                            
+                            <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span class="font-medium">周报</span>
+                                </div>
+                                <p class="text-xs text-slate-400">本周帖子总结</p>
+                                <button onclick="pushReport('weekly')" class="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                    立即推送
+                                </button>
+                            </div>
+                            
+                            <div class="p-4 bg-dark-bg rounded-lg border border-dark-border space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                    </svg>
+                                    <span class="font-medium">测试</span>
+                                </div>
+                                <p class="text-xs text-slate-400">发送测试消息</p>
+                                <button onclick="pushReport('test')" class="w-full px-4 py-2 bg-amber-500 hover:bg-amber-600 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                    立即推送
+                                </button>
+                            </div>
+                        </div>
+                        <div id="push-result" class="text-sm"></div>
+                    </div>
+                    
+                    <!-- Save Button -->
+                    <div class="flex justify-end gap-4">
+                        <button onclick="saveSettings()" id="btn-save-settings" class="px-6 py-2.5 bg-primary hover:bg-primary/90 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            保存设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Post Detail Modal -->
+    <div id="post-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="absolute inset-4 sm:inset-8 lg:inset-16 bg-dark-card border border-dark-border rounded-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-dark-border flex items-center justify-between">
+                <h3 class="font-heading font-semibold">帖子详情</h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-dark-bg rounded-lg transition-colors cursor-pointer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="modal-content" class="flex-1 overflow-y-auto p-6">
+                <!-- Modal content will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 模块加载（顺序很重要） -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/components/toggle.js"></script>
+    <script src="js/components/post-card.js"></script>
+    <script src="js/components/post-modal.js"></script>
+    <script src="js/views/posts-view.js"></script>
+    <script src="js/views/settings-view.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
