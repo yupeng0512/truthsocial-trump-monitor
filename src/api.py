@@ -28,6 +28,59 @@ from src.runtime_config import (
 # 服务器时区
 SERVER_TZ = ZoneInfo(settings.timezone)
 
+# 翻译器（延迟初始化）
+_translator = None
+
+def get_translator():
+    """获取翻译器实例"""
+    global _translator
+    if _translator is None:
+        runtime_config = get_runtime_config()
+        if runtime_config.translate.translate_enabled and settings.translate_enabled:
+            try:
+                from src.integrations.translator import TencentTranslator
+                _translator = TencentTranslator()
+                if not _translator.enabled:
+                    _translator = None
+            except Exception as e:
+                logger.warning(f"翻译器初始化失败: {e}")
+                _translator = None
+    return _translator
+
+def translate_post_content(post: Post, db) -> str:
+    """翻译帖子内容并更新数据库
+    
+    Args:
+        post: 帖子对象
+        db: 数据库管理器
+        
+    Returns:
+        翻译后的内容，如果翻译失败或不需要翻译则返回空字符串
+    """
+    # 如果已有翻译，直接返回
+    if post.translated_content:
+        return post.translated_content
+    
+    translator = get_translator()
+    if not translator:
+        return ""
+    
+    content = post.content or ""
+    if not content.strip():
+        return ""
+    
+    try:
+        _, translated = translator.translate_if_english(content)
+        if translated:
+            # 更新数据库
+            db.update_translation(post.id, translated)
+            logger.debug(f"帖子 {post.post_id} 翻译完成")
+            return translated
+    except Exception as e:
+        logger.warning(f"翻译帖子 {post.post_id} 失败: {e}")
+    
+    return ""
+
 # 创建 FastAPI 应用
 app = FastAPI(
     title="Trump Truth Social Monitor API",
@@ -486,17 +539,18 @@ async def push_report(request: PushReportRequest):
                 if not posts:
                     return {"success": True, "message": "今日暂无新帖子"}
                 
-                # 转换为字典格式
-                posts_data = [
-                    {
+                # 转换为字典格式，并补充翻译
+                posts_data = []
+                for post in posts:
+                    # 如果没有翻译，尝试翻译
+                    translated = post.translated_content or translate_post_content(post, db)
+                    posts_data.append({
                         "content": post.content or "",
-                        "translated_content": post.translated_content or "",
+                        "translated_content": translated,
                         "posted_at": post.posted_at,
                         "is_reblog": post.is_reblog,
                         "url": post.url or "",
-                    }
-                    for post in posts
-                ]
+                    })
                 
                 # AI 分析（如果启用）
                 ai_analysis = None
@@ -562,19 +616,20 @@ async def push_report(request: PushReportRequest):
                 if total_count == 0:
                     return {"success": True, "message": "本周暂无帖子"}
                 
-                # 转换为字典格式
-                hot_posts_data = [
-                    {
+                # 转换为字典格式，并补充翻译
+                hot_posts_data = []
+                for post in hot_posts:
+                    # 如果没有翻译，尝试翻译
+                    translated = post.translated_content or translate_post_content(post, db)
+                    hot_posts_data.append({
                         "content": post.content or "",
-                        "translated_content": post.translated_content or "",
+                        "translated_content": translated,
                         "reblogs_count": post.reblogs_count,
                         "favourites_count": post.favourites_count,
                         "replies_count": post.replies_count,
                         "url": post.url or "",
                         "posted_at": post.posted_at.isoformat() if post.posted_at else None,
-                    }
-                    for post in hot_posts
-                ]
+                    })
                 
                 # AI 分析（如果启用）
                 ai_analysis = None

@@ -646,17 +646,21 @@ class TrumpMonitor:
                     logger.info("今日无新帖子，跳过每日摘要")
                     return
 
-                # 转换为字典格式
-                posts_data = [
-                    {
+                # 转换为字典格式，并补充翻译
+                posts_data = []
+                for post in posts:
+                    # 如果没有翻译，尝试翻译
+                    translated = post.translated_content
+                    if not translated and self.translator and self.translator.enabled:
+                        translated = self.translate_post(post)
+                    
+                    posts_data.append({
                         "content": post.content or "",
-                        "translated_content": post.translated_content or "",
+                        "translated_content": translated or "",
                         "posted_at": post.posted_at,
                         "is_reblog": post.is_reblog,
                         "url": post.url or "",
-                    }
-                    for post in posts
-                ]
+                    })
 
                 # AI 分析（如果启用）
                 ai_analysis = await self._analyze_posts_batch(
@@ -728,19 +732,23 @@ class TrumpMonitor:
                     logger.info("本周无帖子，跳过每周总结")
                     return
 
-                # 转换为字典格式
-                hot_posts_data = [
-                    {
+                # 转换为字典格式，并补充翻译
+                hot_posts_data = []
+                for post in hot_posts:
+                    # 如果没有翻译，尝试翻译
+                    translated = post.translated_content
+                    if not translated and self.translator and self.translator.enabled:
+                        translated = self.translate_post(post)
+                    
+                    hot_posts_data.append({
                         "content": post.content or "",
-                        "translated_content": post.translated_content or "",
+                        "translated_content": translated or "",
                         "reblogs_count": post.reblogs_count,
                         "favourites_count": post.favourites_count,
                         "replies_count": post.replies_count,
                         "url": post.url or "",
                         "posted_at": post.posted_at.isoformat() if post.posted_at else None,
-                    }
-                    for post in hot_posts
-                ]
+                    })
 
                 # AI 分析（如果启用）- 分析热门帖子
                 ai_analysis = await self._analyze_posts_batch(
