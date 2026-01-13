@@ -325,6 +325,7 @@ class TrumpMonitor:
 
         content = post.content or ""
         if not content.strip():
+            logger.debug(f"帖子 {post.post_id} 内容为空（可能是视频/图片），跳过翻译")
             return None
 
         try:
