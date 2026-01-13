@@ -544,12 +544,12 @@ class TrumpMonitor:
                 hour, minute = map(int, notification_config.daily_report_time.split(":"))
                 self.scheduler.add_job(
                     self.send_daily_report,
-                    trigger=CronTrigger(hour=hour, minute=minute),
+                    trigger=CronTrigger(hour=hour, minute=minute, timezone=self.SERVER_TZ),
                     id="daily_report_job",
                     name="每日摘要推送",
                     replace_existing=True,
                 )
-                logger.info(f"每日摘要任务已设置: 每天 {notification_config.daily_report_time}")
+                logger.info(f"每日摘要任务已设置: 每天 {notification_config.daily_report_time} ({settings.timezone})")
             except Exception as e:
                 logger.error(f"设置每日摘要任务失败: {e}")
 
@@ -561,14 +561,14 @@ class TrumpMonitor:
                 day_of_week = notification_config.weekly_report_day - 1
                 self.scheduler.add_job(
                     self.send_weekly_report,
-                    trigger=CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute),
+                    trigger=CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, timezone=self.SERVER_TZ),
                     id="weekly_report_job",
                     name="每周总结推送",
                     replace_existing=True,
                 )
                 day_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
                 logger.info(
-                    f"每周总结任务已设置: 每{day_names[day_of_week]} {notification_config.weekly_report_time}"
+                    f"每周总结任务已设置: 每{day_names[day_of_week]} {notification_config.weekly_report_time} ({settings.timezone})"
                 )
             except Exception as e:
                 logger.error(f"设置每周总结任务失败: {e}")
@@ -626,14 +626,19 @@ class TrumpMonitor:
         try:
             from sqlalchemy import select
 
-            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            # 使用服务器时区获取今天的开始时间
+            now = datetime.now(self.SERVER_TZ)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            # 转换为无时区的 datetime 用于数据库查询（数据库存储的是本地时间）
+            today_start_naive = today_start.replace(tzinfo=None)
+            logger.info(f"每日摘要时间范围: {today_start_naive} 至今 ({settings.timezone})")
 
             with self.db.get_session() as session:
                 from src.storage.models import Post
 
                 posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= today_start)
+                    .where(Post.posted_at >= today_start_naive)
                     .order_by(Post.posted_at.desc())
                 ).scalars().all()
 
@@ -682,21 +687,25 @@ class TrumpMonitor:
         try:
             from sqlalchemy import select, func, and_
 
-            today = datetime.now()
-            week_start = today - timedelta(days=today.weekday())
+            # 使用服务器时区获取本周的开始时间
+            now = datetime.now(self.SERVER_TZ)
+            week_start = now - timedelta(days=now.weekday())
             week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            # 转换为无时区的 datetime 用于数据库查询
+            week_start_naive = week_start.replace(tzinfo=None)
+            logger.info(f"每周总结时间范围: {week_start_naive} 至今 ({settings.timezone})")
 
             with self.db.get_session() as session:
                 from src.storage.models import Post
 
                 # 统计数据
                 total_count = session.execute(
-                    select(func.count(Post.id)).where(Post.posted_at >= week_start)
+                    select(func.count(Post.id)).where(Post.posted_at >= week_start_naive)
                 ).scalar() or 0
 
                 original_count = session.execute(
                     select(func.count(Post.id)).where(
-                        and_(Post.posted_at >= week_start, Post.is_reblog == False)
+                        and_(Post.posted_at >= week_start_naive, Post.is_reblog == False)
                     )
                 ).scalar() or 0
 
@@ -708,7 +717,7 @@ class TrumpMonitor:
                 # 获取热门帖子
                 hot_posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= week_start)
+                    .where(Post.posted_at >= week_start_naive)
                     .order_by(
                         (Post.reblogs_count + Post.favourites_count + Post.replies_count).desc()
                     )
@@ -740,8 +749,8 @@ class TrumpMonitor:
                 )
 
                 success = await self.feishu.send_weekly_report(
-                    week_start=week_start,
-                    week_end=today,
+                    week_start=week_start_naive,
+                    week_end=now.replace(tzinfo=None),
                     total_posts=total_count,
                     original_posts=original_count,
                     reblog_posts=reblog_count,

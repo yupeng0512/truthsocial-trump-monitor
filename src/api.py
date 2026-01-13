@@ -5,6 +5,7 @@
 
 from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,9 @@ from src.runtime_config import (
     ScrapeConfig,
     TranslateConfig,
 )
+
+# 服务器时区
+SERVER_TZ = ZoneInfo(settings.timezone)
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -466,13 +470,16 @@ async def push_report(request: PushReportRequest):
             return {"success": success, "message": "测试推送完成" if success else "推送失败"}
         
         elif request.report_type == "daily":
-            # 获取今日帖子
-            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            # 获取今日帖子（使用服务器时区）
+            now = datetime.now(SERVER_TZ)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start_naive = today_start.replace(tzinfo=None)
+            logger.info(f"日报时间范围: {today_start_naive} 至今 ({settings.timezone})")
             
             with db.get_session() as session:
                 posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= today_start)
+                    .where(Post.posted_at >= today_start_naive)
                     .order_by(Post.posted_at.desc())
                 ).scalars().all()
                 
@@ -514,14 +521,16 @@ async def push_report(request: PushReportRequest):
                     except Exception as e:
                         logger.warning(f"日报 AI 分析失败: {e}")
                 
-                success = await client.send_daily_report(posts_data, today_start, ai_analysis=ai_analysis)
+                success = await client.send_daily_report(posts_data, today_start_naive, ai_analysis=ai_analysis)
                 return {"success": success, "message": f"日报推送完成，共 {len(posts)} 条帖子"}
         
         elif request.report_type == "weekly":
-            # 获取本周帖子
-            today = datetime.now()
-            week_start = today - timedelta(days=today.weekday())
+            # 获取本周帖子（使用服务器时区）
+            now = datetime.now(SERVER_TZ)
+            week_start = now - timedelta(days=now.weekday())
             week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            week_start_naive = week_start.replace(tzinfo=None)
+            logger.info(f"周报时间范围: {week_start_naive} 至今 ({settings.timezone})")
             
             # 从配置获取热门帖子数量
             top_posts_limit = notification_config.weekly_report_top_posts
@@ -529,12 +538,12 @@ async def push_report(request: PushReportRequest):
             with db.get_session() as session:
                 # 统计数据
                 total_count = session.execute(
-                    select(func.count(Post.id)).where(Post.posted_at >= week_start)
+                    select(func.count(Post.id)).where(Post.posted_at >= week_start_naive)
                 ).scalar() or 0
                 
                 original_count = session.execute(
                     select(func.count(Post.id)).where(
-                        and_(Post.posted_at >= week_start, Post.is_reblog == False)
+                        and_(Post.posted_at >= week_start_naive, Post.is_reblog == False)
                     )
                 ).scalar() or 0
                 
@@ -543,7 +552,7 @@ async def push_report(request: PushReportRequest):
                 # 获取热门帖子（按互动量排序）
                 hot_posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= week_start)
+                    .where(Post.posted_at >= week_start_naive)
                     .order_by(
                         (Post.reblogs_count + Post.favourites_count + Post.replies_count).desc()
                     )
@@ -591,8 +600,8 @@ async def push_report(request: PushReportRequest):
                         logger.warning(f"周报 AI 分析失败: {e}")
                 
                 success = await client.send_weekly_report(
-                    week_start=week_start,
-                    week_end=today,
+                    week_start=week_start_naive,
+                    week_end=now.replace(tzinfo=None),
                     total_posts=total_count,
                     original_posts=original_count,
                     reblog_posts=reblog_count,
