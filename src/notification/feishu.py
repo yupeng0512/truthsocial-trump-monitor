@@ -882,6 +882,73 @@ class FeishuClient:
         else:
             return self.TYPE_BOT_WEBHOOK
 
+    @staticmethod
+    def _format_ai_analysis_for_batch(ai_analysis: dict) -> str:
+        """格式化 AI 分析结果（用于批量推送）
+        
+        Args:
+            ai_analysis: AI 分析结果字典
+            
+        Returns:
+            格式化后的字符串
+        """
+        if not ai_analysis:
+            return ""
+        
+        lines = ["🤖 AI 分析"]
+        
+        # 核心结论
+        summary = ai_analysis.get("summary", {})
+        if summary:
+            if headline := summary.get("headline"):
+                lines.append(f"   📌 {headline}")
+            
+            sentiment = summary.get("overall_sentiment", "")
+            impact = summary.get("market_impact_level", "")
+            urgency = summary.get("urgency", "")
+            
+            sentiment_map = {"bullish": "看涨📈", "bearish": "看跌📉", "neutral": "中性➡️", "mixed": "混合↔️"}
+            impact_map = {"high": "高🔴", "medium": "中🟡", "low": "低🟢", "none": "无"}
+            
+            meta_parts = []
+            if sentiment:
+                meta_parts.append(f"情绪:{sentiment_map.get(sentiment, sentiment)}")
+            if impact:
+                meta_parts.append(f"影响:{impact_map.get(impact, impact)}")
+            if urgency:
+                meta_parts.append(f"紧迫性:{urgency}")
+            
+            if meta_parts:
+                lines.append(f"   {' | '.join(meta_parts)}")
+        
+        # 投资建议（简化，只显示1-2条）
+        recommendations = ai_analysis.get("investment_recommendations", [])
+        if recommendations:
+            lines.append("")
+            lines.append("   💡 投资建议:")
+            for rec in recommendations[:2]:
+                category = rec.get("category", "")
+                direction = rec.get("direction", "")
+                confidence = rec.get("confidence", 0)
+                ticker = rec.get("ticker", "")
+                
+                direction_map = {"long": "做多📈", "short": "做空📉", "hedge": "对冲🛡️", "hedge/short": "对冲/做空🛡️"}
+                dir_text = direction_map.get(direction, direction)
+                
+                line = f"  • {category} ({dir_text}, 置信度:{confidence}%)"
+                if ticker:
+                    line += f"\n  标的: {ticker}"
+                lines.append(line)
+        
+        # 风险提示（简化，只显示1条）
+        warnings = ai_analysis.get("risk_warnings", [])
+        if warnings:
+            lines.append("")
+            lines.append("   ⚠️ 风险提示:")
+            lines.append(f"  • {warnings[0]}")
+        
+        return "\n".join(lines)
+
     def _gen_sign(self, timestamp: str) -> str:
         """生成签名（仅用于传统群机器人）"""
         if not self.secret:
@@ -1152,6 +1219,12 @@ class FeishuClient:
                 lines.append("")
                 lines.append(f"🌐 中文翻译")
                 lines.append(translated)
+
+            # 添加 AI 分析
+            ai_analysis = post.get("ai_analysis")
+            if ai_analysis:
+                lines.append("")
+                lines.append(self._format_ai_analysis_for_batch(ai_analysis))
 
             # 添加链接
             if url:

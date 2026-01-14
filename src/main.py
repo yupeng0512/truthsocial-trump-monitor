@@ -380,6 +380,9 @@ class TrumpMonitor:
                 for p in unnotified:
                     # 翻译并更新数据库
                     translated = self.translate_post(p)
+                    
+                    # AI 分析（如果启用）
+                    ai_analysis = await self._analyze_post(p, translated)
 
                     post_dict = {
                         "content": p.content,
@@ -387,6 +390,7 @@ class TrumpMonitor:
                         "posted_at": p.posted_at,
                         "is_reblog": p.is_reblog,
                         "translated_content": translated,
+                        "ai_analysis": ai_analysis,
                     }
                     posts_data.append(post_dict)
 
