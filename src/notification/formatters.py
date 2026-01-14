@@ -89,12 +89,21 @@ def format_ai_analysis(
             category = rec.get("category", "")
             direction = rec.get("direction", "")
             confidence = rec.get("confidence", 0)
-            ticker = rec.get("ticker", "")
             
             dir_text = DIRECTION_MAP.get(direction, direction)
             line = f"  • {category} ({dir_text}, 置信度:{confidence}%)"
+            
+            # 兼容两种格式：ticker（简单字符串）或 specific_targets（详细列表）
+            ticker = rec.get("ticker", "")
+            specific_targets = rec.get("specific_targets", [])
+            
             if ticker:
                 line += f"\n  标的: {ticker}"
+            elif specific_targets:
+                targets_str = ", ".join(t.get("name", "") for t in specific_targets if t.get("name"))
+                if targets_str:
+                    line += f"\n  标的: {targets_str}"
+            
             lines.append(line)
     
     # 风险提示
@@ -160,14 +169,22 @@ def format_ai_analysis_markdown(
             category = rec.get("category", "")
             direction = rec.get("direction", "")
             confidence = rec.get("confidence", 0)
-            ticker = rec.get("ticker", "")
             time_horizon = rec.get("time_horizon", "")
             
             dir_emoji = {"long": "📈", "short": "📉", "hedge": "🛡️"}.get(direction, "")
             lines.append(f"{dir_emoji} **{category}** (置信度: {confidence}%)")
             
+            # 兼容两种格式：ticker（简单字符串）或 specific_targets（详细列表）
+            ticker = rec.get("ticker", "")
+            specific_targets = rec.get("specific_targets", [])
+            
             if ticker:
                 lines.append(f"  • 标的: {ticker}")
+            elif specific_targets:
+                targets_str = ", ".join(t.get("name", "") for t in specific_targets if t.get("name"))
+                if targets_str:
+                    lines.append(f"  • 标的: {targets_str}")
+            
             if time_horizon:
                 lines.append(f"  • 时间窗口: {time_horizon}")
             lines.append("")
