@@ -921,12 +921,12 @@ class FeishuClient:
             if meta_parts:
                 lines.append(f"   {' | '.join(meta_parts)}")
         
-        # 投资建议（简化，只显示1-2条）
+        # 投资建议（完整显示）
         recommendations = ai_analysis.get("investment_recommendations", [])
         if recommendations:
             lines.append("")
             lines.append("   💡 投资建议:")
-            for rec in recommendations[:2]:
+            for rec in recommendations:
                 category = rec.get("category", "")
                 direction = rec.get("direction", "")
                 confidence = rec.get("confidence", 0)
@@ -940,12 +940,13 @@ class FeishuClient:
                     line += f"\n  标的: {ticker}"
                 lines.append(line)
         
-        # 风险提示（简化，只显示1条）
+        # 风险提示（完整显示）
         warnings = ai_analysis.get("risk_warnings", [])
         if warnings:
             lines.append("")
             lines.append("   ⚠️ 风险提示:")
-            lines.append(f"  • {warnings[0]}")
+            for w in warnings:
+                lines.append(f"  • {w}")
         
         return "\n".join(lines)
 
