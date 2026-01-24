@@ -340,6 +340,11 @@ class TrumpMonitor:
 
         return None
 
+    def _has_text_content(self, post) -> bool:
+        """判断帖子是否有文本内容（排除纯图片/视频帖子）"""
+        content = post.content if hasattr(post, 'content') else post.get('content', '')
+        return bool(content and content.strip())
+
     async def send_notifications(self) -> None:
         """发送未通知的帖子"""
         if not self.feishu:
@@ -351,12 +356,26 @@ class TrumpMonitor:
             if not unnotified:
                 return
 
-            logger.info(f"发送 {len(unnotified)} 条帖子通知...")
+            # 分离有内容和无内容的帖子
+            posts_with_content = [p for p in unnotified if self._has_text_content(p)]
+            posts_without_content = [p for p in unnotified if not self._has_text_content(p)]
+            
+            # 无内容的帖子直接标记为已通知（避免重复查询）
+            if posts_without_content:
+                media_ids = [p.id for p in posts_without_content]
+                self.db.mark_posts_notified(media_ids)
+                logger.info(f"跳过 {len(posts_without_content)} 条纯媒体帖子（已标记为已通知）")
+            
+            # 如果没有有内容的帖子，直接返回
+            if not posts_with_content:
+                return
+
+            logger.info(f"发送 {len(posts_with_content)} 条有内容的帖子通知...")
 
             # 批量发送或逐条发送
-            if len(unnotified) == 1:
+            if len(posts_with_content) == 1:
                 # 单条帖子
-                post = unnotified[0]
+                post = posts_with_content[0]
 
                 # 翻译并更新数据库
                 translated = self.translate_post(post)
@@ -377,7 +396,7 @@ class TrumpMonitor:
             else:
                 # 多条帖子批量发送
                 posts_data = []
-                for p in unnotified:
+                for p in posts_with_content:
                     # 翻译并更新数据库
                     translated = self.translate_post(p)
                     
@@ -398,7 +417,7 @@ class TrumpMonitor:
 
             if success:
                 # 标记为已通知
-                post_ids = [p.id for p in unnotified]
+                post_ids = [p.id for p in posts_with_content]
                 self.db.mark_posts_notified(post_ids)
                 logger.info(f"通知发送成功，已标记 {len(post_ids)} 条帖子")
             else:
@@ -418,6 +437,11 @@ class TrumpMonitor:
             分析结果字典，如果分析失败或未启用则返回 None
         """
         if not self.trump_analyzer or not settings.knot_enabled:
+            return None
+        
+        # 跳过空内容帖子（纯图片/视频）
+        if not self._has_text_content(post):
+            logger.debug(f"帖子 {post.post_id} 无文本内容，跳过 AI 分析")
             return None
         
         try:
@@ -631,25 +655,32 @@ class TrumpMonitor:
         try:
             from sqlalchemy import select
 
-            # 使用服务器时区获取今天的开始时间
+            # 改用过去 24 小时而非"今天 00:00 后"，避免凌晨时数据过少
             now = datetime.now(self.SERVER_TZ)
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            time_24h_ago = now - timedelta(hours=24)
             # 转换为无时区的 datetime 用于数据库查询（数据库存储的是本地时间）
-            today_start_naive = today_start.replace(tzinfo=None)
-            logger.info(f"每日摘要时间范围: {today_start_naive} 至今 ({settings.timezone})")
+            time_24h_ago_naive = time_24h_ago.replace(tzinfo=None)
+            logger.info(f"每日摘要时间范围: 过去24小时 ({time_24h_ago_naive} 至今, {settings.timezone})")
 
             with self.db.get_session() as session:
                 from src.storage.models import Post
 
                 posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= today_start_naive)
+                    .where(Post.posted_at >= time_24h_ago_naive)
                     .order_by(Post.posted_at.desc())
                 ).scalars().all()
 
                 if not posts:
-                    logger.info("今日无新帖子，跳过每日摘要")
+                    logger.info("过去24小时无新帖子，跳过每日摘要")
                     return
+
+                # 统计有内容和无内容的帖子
+                text_posts = [p for p in posts if self._has_text_content(p)]
+                media_posts = [p for p in posts if not self._has_text_content(p)]
+                text_posts_count = len(text_posts)
+                media_posts_count = len(media_posts)
+                logger.info(f"帖子统计: 文本 {text_posts_count} 条，媒体 {media_posts_count} 条")
 
                 # 转换为字典格式，并补充翻译
                 posts_data = []
@@ -667,16 +698,26 @@ class TrumpMonitor:
                         "url": post.url or "",
                     })
 
-                # AI 分析（如果启用）
-                ai_analysis = await self._analyze_posts_batch(
-                    posts_data, 
-                    analysis_focus="daily_summary"
-                )
+                # AI 分析（如果启用）- 只分析有文本内容的帖子
+                ai_analysis = None
+                if text_posts_count > 0:
+                    posts_for_analysis = [
+                        p for p in posts_data if p.get("content", "").strip()
+                    ]
+                    if posts_for_analysis:
+                        ai_analysis = await self._analyze_posts_batch(
+                            posts_for_analysis, 
+                            analysis_focus="daily_summary"
+                        )
+                else:
+                    logger.info("无文本帖子，跳过 AI 分析")
 
                 success = await self.feishu.send_daily_report(
                     posts_data, 
-                    today_start,
+                    time_24h_ago_naive,
                     ai_analysis=ai_analysis,
+                    text_posts_count=text_posts_count,
+                    media_posts_count=media_posts_count,
                 )
                 if success:
                     logger.info(f"每日摘要推送成功，共 {len(posts)} 条帖子")

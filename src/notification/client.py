@@ -249,8 +249,18 @@ class FeishuClient:
         posts: list[dict],
         date: Optional[datetime] = None,
         ai_analysis: Optional[dict] = None,
+        text_posts_count: int = 0,
+        media_posts_count: int = 0,
     ) -> bool:
-        """发送每日摘要"""
+        """发送每日摘要
+        
+        Args:
+            posts: 帖子列表
+            date: 报告日期
+            ai_analysis: AI 分析结果
+            text_posts_count: 有文本内容的帖子数
+            media_posts_count: 纯媒体帖子数
+        """
         if not posts:
             return True
 
@@ -277,7 +287,13 @@ class FeishuClient:
                 "url": post.get("url", ""),
             })
 
-        msg = MessageBuilder.build_daily_report(date, formatted_posts, ai_analysis=ai_analysis)
+        msg = MessageBuilder.build_daily_report(
+            date, 
+            formatted_posts, 
+            ai_analysis=ai_analysis,
+            text_posts_count=text_posts_count,
+            media_posts_count=media_posts_count,
+        )
         text = msg.to_text()
 
         if self.webhook_type == self.TYPE_BOT_BUILDER:

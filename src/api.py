@@ -524,21 +524,31 @@ async def push_report(request: PushReportRequest):
             return {"success": success, "message": "测试推送完成" if success else "推送失败"}
         
         elif request.report_type == "daily":
-            # 获取今日帖子（使用服务器时区）
+            # 获取过去24小时帖子（使用服务器时区）
             now = datetime.now(SERVER_TZ)
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_start_naive = today_start.replace(tzinfo=None)
-            logger.info(f"日报时间范围: {today_start_naive} 至今 ({settings.timezone})")
+            time_24h_ago = now - timedelta(hours=24)
+            time_24h_ago_naive = time_24h_ago.replace(tzinfo=None)
+            logger.info(f"日报时间范围: 过去24小时 ({time_24h_ago_naive} 至今, {settings.timezone})")
+            
+            def _has_text_content(post) -> bool:
+                """判断帖子是否有文本内容"""
+                content = post.content if hasattr(post, 'content') else post.get('content', '')
+                return bool(content and content.strip())
             
             with db.get_session() as session:
                 posts = session.execute(
                     select(Post)
-                    .where(Post.posted_at >= today_start_naive)
+                    .where(Post.posted_at >= time_24h_ago_naive)
                     .order_by(Post.posted_at.desc())
                 ).scalars().all()
                 
                 if not posts:
-                    return {"success": True, "message": "今日暂无新帖子"}
+                    return {"success": True, "message": "过去24小时暂无新帖子"}
+                
+                # 统计有内容和无内容的帖子
+                text_posts_count = sum(1 for p in posts if _has_text_content(p))
+                media_posts_count = len(posts) - text_posts_count
+                logger.info(f"帖子统计: 文本 {text_posts_count} 条，媒体 {media_posts_count} 条")
                 
                 # 转换为字典格式，并补充翻译
                 posts_data = []
@@ -553,11 +563,11 @@ async def push_report(request: PushReportRequest):
                         "url": post.url or "",
                     })
                 
-                # AI 分析（如果启用）
+                # AI 分析（如果启用）- 只分析有文本内容的帖子
                 ai_analysis = None
-                if trump_analyzer:
+                if trump_analyzer and text_posts_count > 0:
                     try:
-                        logger.info(f"开始 AI 分析日报 ({len(posts_data)} 条帖子)...")
+                        # 过滤出有文本内容的帖子
                         posts_for_analysis = [
                             {
                                 "content": p.get("content", ""),
@@ -565,19 +575,30 @@ async def push_report(request: PushReportRequest):
                                 "posted_at": p["posted_at"].isoformat() if hasattr(p.get("posted_at"), 'isoformat') else str(p.get("posted_at", "")),
                             }
                             for p in posts_data
+                            if p.get("content", "").strip()  # 只分析有内容的
                         ]
-                        result = await trump_analyzer.analyze_batch(
-                            posts=posts_for_analysis,
-                            analysis_focus="daily_summary"
-                        )
-                        if result["status"] == "success" and result["analysis"]:
-                            ai_analysis = result["analysis"]
-                            logger.info("日报 AI 分析完成")
+                        if posts_for_analysis:
+                            logger.info(f"开始 AI 分析日报 ({len(posts_for_analysis)} 条有文本帖子)...")
+                            result = await trump_analyzer.analyze_batch(
+                                posts=posts_for_analysis,
+                                analysis_focus="daily_summary"
+                            )
+                            if result["status"] == "success" and result["analysis"]:
+                                ai_analysis = result["analysis"]
+                                logger.info("日报 AI 分析完成")
                     except Exception as e:
                         logger.warning(f"日报 AI 分析失败: {e}")
+                elif text_posts_count == 0:
+                    logger.info("无文本帖子，跳过 AI 分析")
                 
-                success = await client.send_daily_report(posts_data, today_start_naive, ai_analysis=ai_analysis)
-                return {"success": success, "message": f"日报推送完成，共 {len(posts)} 条帖子"}
+                success = await client.send_daily_report(
+                    posts_data, 
+                    time_24h_ago_naive, 
+                    ai_analysis=ai_analysis,
+                    text_posts_count=text_posts_count,
+                    media_posts_count=media_posts_count,
+                )
+                return {"success": success, "message": f"日报推送完成，共 {len(posts)} 条帖子（文本 {text_posts_count}，媒体 {media_posts_count}）"}
         
         elif request.report_type == "weekly":
             # 获取本周帖子（使用服务器时区）

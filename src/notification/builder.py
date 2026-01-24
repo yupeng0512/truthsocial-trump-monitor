@@ -117,8 +117,18 @@ class MessageBuilder:
         date: datetime,
         posts: list[dict],
         ai_analysis: Optional[dict] = None,
+        text_posts_count: int = 0,
+        media_posts_count: int = 0,
     ) -> DailyReportMessage:
-        """构建每日报告消息"""
+        """构建每日报告消息
+        
+        Args:
+            date: 报告日期
+            posts: 帖子列表
+            ai_analysis: AI 分析结果
+            text_posts_count: 有文本内容的帖子数
+            media_posts_count: 纯媒体帖子数
+        """
         now = get_local_time()
         return DailyReportMessage(
             title="Trump Truth Social 每日摘要",
@@ -127,6 +137,8 @@ class MessageBuilder:
             posts=posts,
             footer_time=now.strftime("%Y-%m-%d %H:%M:%S"),
             ai_analysis=ai_analysis,
+            text_posts_count=text_posts_count,
+            media_posts_count=media_posts_count,
         )
 
     @staticmethod

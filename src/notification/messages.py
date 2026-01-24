@@ -131,14 +131,21 @@ class DailyReportMessage:
     posts: list[dict]  # [{time, type, content, translation, url}, ...]
     footer_time: Optional[str] = None
     ai_analysis: Optional[dict] = None
+    text_posts_count: int = 0  # 有文本内容的帖子数
+    media_posts_count: int = 0  # 纯媒体帖子数（无文本）
 
     def to_text(self) -> str:
         lines = [
             f"📊 {self.title}",
             f"📅 {self.date}",
-            f"📝 今日共 {self.total_posts} 条帖子",
-            "",
         ]
+        
+        # 统计信息拆分显示
+        if self.text_posts_count > 0 or self.media_posts_count > 0:
+            lines.append(f"📝 共 {self.total_posts} 条帖子（文本 {self.text_posts_count} 条，媒体 {self.media_posts_count} 条）")
+        else:
+            lines.append(f"📝 共 {self.total_posts} 条帖子")
+        lines.append("")
 
         for i, post in enumerate(self.posts[:10], 1):
             time_str = post.get("time", "")
