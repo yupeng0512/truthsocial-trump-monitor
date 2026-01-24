@@ -33,7 +33,16 @@ class NotificationConfig(BaseModel):
     weekly_report_enabled: bool = Field(default=True, description="是否启用每周总结")
     weekly_report_time: str = Field(default="09:00", description="每周总结推送时间")
     weekly_report_day: int = Field(default=1, description="每周总结推送日（1-7，周一到周日）")
-    weekly_report_top_posts: int = Field(default=10, ge=3, le=20, description="周报分析的热门帖子数量")
+
+    # 报告显示配置（日报/周报通用）
+    full_display_count: int = Field(default=10, ge=3, le=20, description="完整显示帖子数量")
+    summary_display_count: int = Field(default=10, ge=0, le=20, description="摘要显示帖子数量（0=不显示摘要）")
+    ai_analysis_limit: int = Field(default=20, ge=5, le=50, description="AI 分析帖子数量上限")
+
+    # 互动量权重配置
+    weight_replies: int = Field(default=3, ge=1, le=10, description="评论权重")
+    weight_reblogs: int = Field(default=2, ge=1, le=10, description="转发权重")
+    weight_favourites: int = Field(default=1, ge=1, le=10, description="点赞权重")
 
 
 class ScrapeConfig(BaseModel):
@@ -151,6 +160,12 @@ class RuntimeConfigManager:
                 weekly_report_enabled=True,
                 weekly_report_time="09:00",
                 weekly_report_day=1,
+                full_display_count=10,
+                summary_display_count=10,
+                ai_analysis_limit=20,
+                weight_replies=3,
+                weight_reblogs=2,
+                weight_favourites=1,
             ),
             scrape=ScrapeConfig(
                 scrape_enabled=True,

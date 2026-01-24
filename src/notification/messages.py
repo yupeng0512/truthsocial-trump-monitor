@@ -191,37 +191,76 @@ class WeeklyReportMessage:
     total_posts: int
     original_posts: int
     reblog_posts: int
-    hot_posts: list[dict]  # [{content, translation, interactions, url}, ...]
+    hot_posts: list[dict]  # [{content, translation, interactions, weighted_score, url}, ...]
     footer_time: Optional[str] = None
     ai_analysis: Optional[dict] = None
-    top_posts_count: int = 10
+    full_display_count: int = 10  # 完整显示数量
+    summary_display_count: int = 10  # 摘要显示数量
+    text_posts_count: int = 0  # 有文本内容的帖子数
+    media_posts_count: int = 0  # 纯媒体帖子数
+    remaining_count: int = 0  # 剩余未显示的帖子数
 
     def to_text(self) -> str:
         lines = [
             f"📊 {self.title}",
             f"📅 {self.date_range}",
             "",
-            "📝 本周统计:",
-            f"   • 总帖子数: {self.total_posts}",
-            f"   • 原创帖子: {self.original_posts}",
-            f"   • 转发帖子: {self.reblog_posts}",
-            "",
-            f"🔥 本周热门帖子 Top {self.top_posts_count}:",
-            "",
         ]
 
-        for i, post in enumerate(self.hot_posts[:self.top_posts_count], 1):
-            interactions = post.get("interactions", 0)
-            content = post.get("content", "")
-            translation = post.get("translation", "")
-            url = post.get("url", "")
+        # 统计信息
+        lines.append("📝 统计:")
+        lines.append(f"   • 总帖子数: {self.total_posts}")
+        if self.text_posts_count > 0 or self.media_posts_count > 0:
+            lines.append(f"   • 文本帖子: {self.text_posts_count}")
+            lines.append(f"   • 媒体帖子: {self.media_posts_count}")
+        lines.append(f"   • 原创帖子: {self.original_posts}")
+        lines.append(f"   • 转发帖子: {self.reblog_posts}")
+        lines.append("")
 
-            lines.append(f"{i}. 互动量 {interactions:,}")
-            lines.append(f"   {content}")
-            if translation:
-                lines.append(f"   🌐 {translation}")
-            if url:
-                lines.append(f"   🔗 {url}")
+        # 完整显示区（Top N）
+        full_posts = self.hot_posts[:self.full_display_count]
+        if full_posts:
+            lines.append(f"🔥 热门帖子 Top {len(full_posts)}（完整）:")
+            lines.append("")
+
+            for i, post in enumerate(full_posts, 1):
+                weighted_score = post.get("weighted_score", 0)
+                interactions = post.get("interactions", weighted_score)
+                content = post.get("content", "")
+                translation = post.get("translation", "")
+                url = post.get("url", "")
+
+                lines.append(f"{i}. 热度 {interactions:,}")
+                lines.append(f"   {content}")
+                if translation:
+                    lines.append(f"   🌐 {translation}")
+                if url:
+                    lines.append(f"   🔗 {url}")
+                lines.append("")
+
+        # 摘要显示区（N+1 到 M）
+        summary_posts = self.hot_posts[self.full_display_count:self.full_display_count + self.summary_display_count]
+        if summary_posts:
+            lines.append(f"📋 更多热门帖子（{self.full_display_count + 1}-{self.full_display_count + len(summary_posts)}）:")
+            lines.append("")
+
+            for i, post in enumerate(summary_posts, self.full_display_count + 1):
+                weighted_score = post.get("weighted_score", 0)
+                interactions = post.get("interactions", weighted_score)
+                content = post.get("content", "")
+                url = post.get("url", "")
+                # 摘要显示：截断内容
+                content_preview = content[:50] + "..." if len(content) > 50 else content
+
+                lines.append(f"{i}. 热度 {interactions:,} | {content_preview}")
+                if url:
+                    lines.append(f"   🔗 {url}")
+
+            lines.append("")
+
+        # 隐藏区
+        if self.remaining_count > 0:
+            lines.append(f"... 还有 {self.remaining_count} 条文本帖子")
             lines.append("")
 
         # 添加 AI 分析

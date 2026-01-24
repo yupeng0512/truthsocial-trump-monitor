@@ -150,7 +150,11 @@ class MessageBuilder:
         reblog_posts: int,
         hot_posts: list[dict],
         ai_analysis: Optional[dict] = None,
-        top_posts_count: int = 10,
+        full_display_count: int = 10,
+        summary_display_count: int = 10,
+        text_posts_count: int = 0,
+        media_posts_count: int = 0,
+        remaining_count: int = 0,
     ) -> WeeklyReportMessage:
         """构建每周报告消息"""
         now = get_local_time()
@@ -163,5 +167,9 @@ class MessageBuilder:
             hot_posts=hot_posts,
             footer_time=now.strftime("%Y-%m-%d %H:%M:%S"),
             ai_analysis=ai_analysis,
-            top_posts_count=top_posts_count,
+            full_display_count=full_display_count,
+            summary_display_count=summary_display_count,
+            text_posts_count=text_posts_count,
+            media_posts_count=media_posts_count,
+            remaining_count=remaining_count,
         )

@@ -65,10 +65,24 @@ const SettingsView = {
         }
         const weeklyDayInput = document.getElementById('input-weekly-day');
         const weeklyTimeInput = document.getElementById('input-weekly-time');
-        const weeklyTopPostsInput = document.getElementById('input-weekly-top-posts');
         if (weeklyDayInput) weeklyDayInput.value = n.weekly_report_day || 1;
         if (weeklyTimeInput) weeklyTimeInput.value = n.weekly_report_time || '09:00';
-        if (weeklyTopPostsInput) weeklyTopPostsInput.value = n.weekly_report_top_posts || 10;
+        
+        // 报告显示配置
+        const fullDisplayInput = document.getElementById('input-full-display-count');
+        const summaryDisplayInput = document.getElementById('input-summary-display-count');
+        const aiLimitInput = document.getElementById('input-ai-analysis-limit');
+        if (fullDisplayInput) fullDisplayInput.value = n.full_display_count || 10;
+        if (summaryDisplayInput) summaryDisplayInput.value = n.summary_display_count || 10;
+        if (aiLimitInput) aiLimitInput.value = n.ai_analysis_limit || 20;
+        
+        // 互动量权重配置
+        const weightRepliesInput = document.getElementById('input-weight-replies');
+        const weightReblogsInput = document.getElementById('input-weight-reblogs');
+        const weightFavouritesInput = document.getElementById('input-weight-favourites');
+        if (weightRepliesInput) weightRepliesInput.value = n.weight_replies || 3;
+        if (weightReblogsInput) weightReblogsInput.value = n.weight_reblogs || 2;
+        if (weightFavouritesInput) weightFavouritesInput.value = n.weight_favourites || 1;
     },
 
     /**
@@ -103,14 +117,24 @@ const SettingsView = {
             const dailyTimeInput = document.getElementById('input-daily-time');
             const weeklyDayInput = document.getElementById('input-weekly-day');
             const weeklyTimeInput = document.getElementById('input-weekly-time');
-            const weeklyTopPostsInput = document.getElementById('input-weekly-top-posts');
+            const fullDisplayInput = document.getElementById('input-full-display-count');
+            const summaryDisplayInput = document.getElementById('input-summary-display-count');
+            const aiLimitInput = document.getElementById('input-ai-analysis-limit');
+            const weightRepliesInput = document.getElementById('input-weight-replies');
+            const weightReblogsInput = document.getElementById('input-weight-reblogs');
+            const weightFavouritesInput = document.getElementById('input-weight-favourites');
             
             if (webhookInput) n.feishu_webhook = webhookInput.value;
             if (secretInput) n.feishu_secret = secretInput.value;
             if (dailyTimeInput) n.daily_report_time = dailyTimeInput.value;
             if (weeklyDayInput) n.weekly_report_day = parseInt(weeklyDayInput.value);
             if (weeklyTimeInput) n.weekly_report_time = weeklyTimeInput.value;
-            if (weeklyTopPostsInput) n.weekly_report_top_posts = parseInt(weeklyTopPostsInput.value);
+            if (fullDisplayInput) n.full_display_count = parseInt(fullDisplayInput.value);
+            if (summaryDisplayInput) n.summary_display_count = parseInt(summaryDisplayInput.value);
+            if (aiLimitInput) n.ai_analysis_limit = parseInt(aiLimitInput.value);
+            if (weightRepliesInput) n.weight_replies = parseInt(weightRepliesInput.value);
+            if (weightReblogsInput) n.weight_reblogs = parseInt(weightReblogsInput.value);
+            if (weightFavouritesInput) n.weight_favourites = parseInt(weightFavouritesInput.value);
             
             await ApiService.updateNotificationSettings(n);
             

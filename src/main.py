@@ -735,85 +735,119 @@ class TrumpMonitor:
             return
 
         try:
-            from sqlalchemy import select, func, and_
+            from sqlalchemy import select
 
-            # 使用服务器时区获取本周的开始时间
+            # 获取过去7天帖子（使用服务器时区）
             now = datetime.now(self.SERVER_TZ)
-            week_start = now - timedelta(days=now.weekday())
-            week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-            # 转换为无时区的 datetime 用于数据库查询
-            week_start_naive = week_start.replace(tzinfo=None)
-            logger.info(f"每周总结时间范围: {week_start_naive} 至今 ({settings.timezone})")
+            time_7d_ago = now - timedelta(days=7)
+            time_7d_ago_naive = time_7d_ago.replace(tzinfo=None)
+            logger.info(f"每周总结时间范围: 过去7天 ({time_7d_ago_naive} 至今, {settings.timezone})")
+
+            # 从配置获取显示和分析参数
+            full_display_count = notification_config.full_display_count
+            summary_display_count = notification_config.summary_display_count
+            ai_analysis_limit = notification_config.ai_analysis_limit
+            weight_replies = notification_config.weight_replies
+            weight_reblogs = notification_config.weight_reblogs
+            weight_favourites = notification_config.weight_favourites
+
+            def _has_text_content(post) -> bool:
+                """判断帖子是否有文本内容"""
+                return bool(post.content and post.content.strip())
 
             with self.db.get_session() as session:
                 from src.storage.models import Post
 
-                # 统计数据
-                total_count = session.execute(
-                    select(func.count(Post.id)).where(Post.posted_at >= week_start_naive)
-                ).scalar() or 0
-
-                original_count = session.execute(
-                    select(func.count(Post.id)).where(
-                        and_(Post.posted_at >= week_start_naive, Post.is_reblog == False)
-                    )
-                ).scalar() or 0
-
-                reblog_count = total_count - original_count
-
-                # 从配置获取热门帖子数量
-                top_posts_limit = notification_config.weekly_report_top_posts
-
-                # 获取热门帖子
-                hot_posts = session.execute(
-                    select(Post)
-                    .where(Post.posted_at >= week_start_naive)
-                    .order_by(
-                        (Post.reblogs_count + Post.favourites_count + Post.replies_count).desc()
-                    )
-                    .limit(top_posts_limit)
+                # 获取所有帖子用于统计
+                all_posts = session.execute(
+                    select(Post).where(Post.posted_at >= time_7d_ago_naive)
                 ).scalars().all()
 
+                total_count = len(all_posts)
                 if total_count == 0:
-                    logger.info("本周无帖子，跳过每周总结")
+                    logger.info("过去7天无帖子，跳过每周总结")
                     return
 
-                # 转换为字典格式，并补充翻译
+                # 统计分类
+                text_posts = [p for p in all_posts if _has_text_content(p)]
+                media_posts = [p for p in all_posts if not _has_text_content(p)]
+                text_posts_count = len(text_posts)
+                media_posts_count = len(media_posts)
+
+                original_count = sum(1 for p in all_posts if not p.is_reblog)
+                reblog_count = total_count - original_count
+
+                logger.info(f"周报统计: 总 {total_count} 条，文本 {text_posts_count}，媒体 {media_posts_count}，原创 {original_count}，转发 {reblog_count}")
+
+                # 按加权互动量排序（只统计有文本内容的帖子）
+                def calc_weighted_score(post) -> int:
+                    return (
+                        post.replies_count * weight_replies +
+                        post.reblogs_count * weight_reblogs +
+                        post.favourites_count * weight_favourites
+                    )
+
+                sorted_text_posts = sorted(text_posts, key=calc_weighted_score, reverse=True)
+
+                # 取热门帖子用于显示和分析
+                hot_posts_for_display = sorted_text_posts[:full_display_count + summary_display_count]
+                hot_posts_for_ai = sorted_text_posts[:ai_analysis_limit]
+
+                # 转换为字典格式
                 hot_posts_data = []
-                for post in hot_posts:
-                    # 如果没有翻译，尝试翻译
+                for post in hot_posts_for_display:
                     translated = post.translated_content
                     if not translated and self.translator and self.translator.enabled:
                         translated = self.translate_post(post)
-                    
+
                     hot_posts_data.append({
                         "content": post.content or "",
                         "translated_content": translated or "",
                         "reblogs_count": post.reblogs_count,
                         "favourites_count": post.favourites_count,
                         "replies_count": post.replies_count,
+                        "weighted_score": calc_weighted_score(post),
                         "url": post.url or "",
                         "posted_at": post.posted_at.isoformat() if post.posted_at else None,
                     })
 
-                # AI 分析（如果启用）- 分析热门帖子
-                ai_analysis = await self._analyze_posts_batch(
-                    hot_posts_data,
-                    analysis_focus="weekly_summary"
-                )
+                # AI 分析（如果启用）- 只分析有文本内容的热门帖子
+                ai_analysis = None
+                if hot_posts_for_ai:
+                    posts_for_analysis = [
+                        {
+                            "content": p.content or "",
+                            "translated_content": p.translated_content or "",
+                            "posted_at": p.posted_at.isoformat() if p.posted_at else "",
+                        }
+                        for p in hot_posts_for_ai
+                        if p.content and p.content.strip()
+                    ]
+                    if posts_for_analysis:
+                        ai_analysis = await self._analyze_posts_batch(
+                            posts_for_analysis,
+                            analysis_focus="weekly_summary"
+                        )
+
+                # 计算剩余帖子数
+                remaining_count = max(0, text_posts_count - full_display_count - summary_display_count)
 
                 success = await self.feishu.send_weekly_report(
-                    week_start=week_start_naive,
+                    week_start=time_7d_ago_naive,
                     week_end=now.replace(tzinfo=None),
                     total_posts=total_count,
                     original_posts=original_count,
                     reblog_posts=reblog_count,
                     hot_posts=hot_posts_data,
                     ai_analysis=ai_analysis,
-                    top_posts_count=top_posts_limit,
+                    full_display_count=full_display_count,
+                    summary_display_count=summary_display_count,
+                    text_posts_count=text_posts_count,
+                    media_posts_count=media_posts_count,
+                    remaining_count=remaining_count,
                 )
                 if success:
-                    logger.info(f"每周总结推送成功，本周共 {total_count} 条帖子")
+                    logger.info(f"每周总结推送成功，过去7天共 {total_count} 条帖子（文本 {text_posts_count}，媒体 {media_posts_count}）")
                 else:
                     logger.error("每周总结推送失败")
 

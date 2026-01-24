@@ -310,21 +310,44 @@ class FeishuClient:
         reblog_posts: int,
         hot_posts: list[dict],
         ai_analysis: Optional[dict] = None,
-        top_posts_count: int = 10,
+        full_display_count: int = 10,
+        summary_display_count: int = 10,
+        text_posts_count: int = 0,
+        media_posts_count: int = 0,
+        remaining_count: int = 0,
     ) -> bool:
-        """发送每周总结"""
+        """发送每周总结
+        
+        Args:
+            week_start: 周期开始时间
+            week_end: 周期结束时间
+            total_posts: 总帖子数
+            original_posts: 原创帖子数
+            reblog_posts: 转发帖子数
+            hot_posts: 热门帖子列表
+            ai_analysis: AI 分析结果
+            full_display_count: 完整显示数量
+            summary_display_count: 摘要显示数量
+            text_posts_count: 有文本内容的帖子数
+            media_posts_count: 纯媒体帖子数
+            remaining_count: 剩余未显示的帖子数
+        """
         # 格式化热门帖子
         formatted_hot_posts = []
         for post in hot_posts:
-            interactions = (
-                post.get("reblogs_count", 0)
-                + post.get("favourites_count", 0)
-                + post.get("replies_count", 0)
-            )
+            # 计算加权得分或使用传入的
+            weighted_score = post.get("weighted_score", 0)
+            if weighted_score == 0:
+                weighted_score = (
+                    post.get("reblogs_count", 0)
+                    + post.get("favourites_count", 0)
+                    + post.get("replies_count", 0)
+                )
             formatted_hot_posts.append({
                 "content": post.get("content", ""),
                 "translation": post.get("translated_content", ""),
-                "interactions": interactions,
+                "interactions": weighted_score,
+                "weighted_score": weighted_score,
                 "url": post.get("url", ""),
             })
 
@@ -336,7 +359,11 @@ class FeishuClient:
             reblog_posts=reblog_posts,
             hot_posts=formatted_hot_posts,
             ai_analysis=ai_analysis,
-            top_posts_count=top_posts_count,
+            full_display_count=full_display_count,
+            summary_display_count=summary_display_count,
+            text_posts_count=text_posts_count,
+            media_posts_count=media_posts_count,
+            remaining_count=remaining_count,
         )
         text = msg.to_text()
 

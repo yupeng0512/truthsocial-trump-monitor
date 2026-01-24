@@ -39,7 +39,14 @@ const AppState = {
                 weekly_report_enabled: true,
                 weekly_report_time: '09:00',
                 weekly_report_day: 1,
-                weekly_report_top_posts: 10,
+                // 报告显示配置
+                full_display_count: 10,
+                summary_display_count: 10,
+                ai_analysis_limit: 20,
+                // 互动量权重
+                weight_replies: 3,
+                weight_reblogs: 2,
+                weight_favourites: 1,
             },
         },
         
