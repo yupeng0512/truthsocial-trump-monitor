@@ -41,7 +41,7 @@ services:
       KNOT_API_TOKEN: ${KNOT_API_TOKEN}
       KNOT_AGENT_TOKEN: ${KNOT_AGENT_TOKEN}
       KNOT_USERNAME: ${KNOT_USERNAME}
-      KNOT_MODEL: ${KNOT_MODEL:-deepseek-v3.1}
+      KNOT_MODEL: ${KNOT_MODEL:-claude-4.6-sonnet}
       
       # 腾讯云翻译配置
       TRANSLATE_ENABLED: ${TRANSLATE_ENABLED:-false}
@@ -65,13 +65,16 @@ services:
       # 通用配置
       TIMEZONE: ${TIMEZONE:-Asia/Shanghai}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    ports:
-      - "6001:6001"  # 前端访问端口
     volumes:
       - ./logs:/app/logs
     networks:
-      - github-sentinel_sentinel-network  # 连接到 github-sentinel 的网络
-    # 健康检查
+      - github-sentinel_sentinel-network
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.trump-monitor.rule=Host(`trump.dev.local`)"
+      - "traefik.http.routers.trump-monitor.entrypoints=web"
+      - "traefik.http.services.trump-monitor.loadbalancer.server.port=6001"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6001/api/health')"]
       interval: 30s
@@ -81,4 +84,6 @@ services:
 
 networks:
   github-sentinel_sentinel-network:
-    external: true  # 使用外部网络
+    external: true
+  traefik-net:
+    external: true

@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     knot_api_token: str = Field(default="", description="Knot 用户个人 Token（推荐）")
     knot_agent_token: str = Field(default="", description="Knot 智能体 Token")
     knot_username: str = Field(default="", description="Knot 用户名（使用智能体 Token 时需要）")
-    knot_model: str = Field(default="deepseek-v3.1", description="Knot 调用的模型")
+    knot_model: str = Field(default="claude-4.6-sonnet", description="Knot 调用的模型")
 
     # 腾讯云翻译配置
     tencentcloud_secret_id: str = Field(default="", description="腾讯云 SecretId")

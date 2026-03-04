@@ -39,7 +39,7 @@ class AGUIClient:
     DEFAULT_TIMEOUT = 120
     
     # 支持的模型
-    SUPPORTED_MODELS = ["deepseek-v3.1", "deepseek-v3.2", "glm-4.7"]
+    SUPPORTED_MODELS = ["claude-4.6-sonnet", "glm-5"]
     
     def __init__(
         self,
